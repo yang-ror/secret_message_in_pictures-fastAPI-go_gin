@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
+
+        <title>Secret Message in Pictures</title>
+
+        <style>
+            html{
+                height: 100%;
+            }
+
+            body{
+                height: 100%;
+                background-color: rgb(20, 20, 30);
+                text-align: center;
+            }
+
+            #main-div{
+                height: 100%;
+            }
+
+            #title{
+                color:snow;
+            }
+
+            #image-div{
+                align-items: center;
+                margin-bottom: 25px;
+            }
+
+            #current-image{
+                max-height: 100%;
+                max-width: 100%;
+                display: none;
+            }
+
+            #radio-button-div{
+                align-items: center;
+                display: none;
+                margin-bottom: 25px;
+            }
+
+            #textarea-div, #loading-div{
+                display: none;
+            }
+
+            #message-description-div{
+                color:gainsboro;
+                text-align: left;
+            }
+
+            .message-descriptions{
+                display: inline-block;
+            }
+
+            #message-capacity-holder, #message-discover-holder, #message-warning-holder{
+                margin-left: 20px;
+            }
+
+            .loader {
+                border: 16px solid #f3f3f3;
+                border-top: 16px solid #3498db;
+                border-radius: 50%;
+                width: 120px;
+                height: 120px;
+                animation: spin 2s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+
+        <script>
+            var onPictureView = false;
+            var isMessageExist
+            var remainingChar
+
+            $( document ).ready(function() {
+                keepContentCenteredVertically();
+                addListeners();
+                $("#discover-message").hide();
+                $("#message-warning-holder").hide();
+            });
+
+            $(window).resize(function() {
+                if(onPictureView){
+                    setPictureHeight();
+                    keepPictureCenteredVertically();
+                }
+                else{
+                    keepContentCenteredVertically();
+                }
+			});
+
+            function addListeners(){
+                $( document ).on('change','#path-of-file' , function(){
+                    $("#upload-button").prop('disabled', false);
+                });
+
+                $("#upload-button").click(function(event){
+                    var formData = new FormData();
+                    formData.append('file', $("#path-of-file")[0].files[0]);
+
+                    $.ajax({
+                        url : '/upload',
+                        type : 'POST',
+                        data : formData,
+                        processData: false,
+                        cache: false,
+                        contentType: false,
+                        success : function(data) {
+                            if(onPictureView){
+                                replaceCurrentImage("./static/" + data.filename)
+                            }
+                            else{
+                                finishUploadAnimation("./static/" + data.filename);
+                            }
+                            
+                            onPictureView = true;
+                            remainingChar = data.capacity
+                            isMessageExist = data.isMessageExist == 'true' ? true : false;
+                            
+                            if(isMessageExist){
+                                setupMessageFound();
+                                readMessage();
+                            }
+                            else{
+                                setupMessageNotFound();
+                                showHidingMessageDiv();
+                                setRemainingCapacity(remainingChar);
+                            }
+                        }
+                    });
+                });
+
+                $("#btnradio-hide").click(function(event){
+                    showHidingMessageDiv();
+                });
+
+                $("#btnradio-read").click(function(event){
+                    showReadingMessageDiv();
+                });
+
+                $('#hide-message-textarea').bind('input propertychange', function() {
+                    setRemainingCapacity(remainingChar - this.value.length);
+                });
+            }
+
+            function setRemainingCapacity(capacity){
+                $("#message-capacity").text(capacity);
+            }
+
+            function replaceCurrentImage(imageUrl){
+                $("#discover-message-textarea").text("");
+                $("#radio-button-div").hide();
+                $("#textarea-div").hide();
+                $("#current-image").fadeOut(300, function(){
+                    $("#current-image").remove();
+                    replaceCurrentImageAnimation(imageUrl);
+                });
+                keepPictureCenteredVertically();
+            }
+
+            function finishUploadAnimation(imageUrl){
+                $("#positioning-div").slideUp(500, function(){
+                    replaceCurrentImageAnimation(imageUrl);
+                });
+                keepPictureCenteredVertically();
+            }
+
+            function setupMessageFound(){
+                $("#btnradio-read").prop('disabled', false);
+                $("#radio-button-append").prop('disabled', false);
+                $("#radio-button-replace").prop('disabled', false);
+                $("#message-discovery").removeClass("text-danger");
+                $("#message-discovery").addClass("text-success");
+                $("#message-discovery").text("Found hidden message!");
+            }
+
+            function setupMessageNotFound(){
+                $("#btnradio-read").prop('disabled', true);
+                $("#btnradio-read").prop('checked', false);
+                $("#btnradio-hide").prop('checked', true);
+                $("#radio-button-append").prop('disabled', true);
+                $("#radio-button-replace").prop('disabled', true);
+                $("#message-discovery").removeClass("text-success");
+                $("#message-discovery").addClass("text-danger");
+                $("#message-discovery").text("No existing message");
+            }
+
+            function showHidingMessageDiv(){
+                if(isMessageExist){
+                    $("#radio-button-append").prop('disabled', false);
+                    $("#radio-button-replace").prop('disabled', false);
+                }
+                $("#discover-message").slideUp(300, function(){
+                    $("#hide-message").slideDown(300);
+                });
+            }
+
+            function showReadingMessageDiv(){
+                $("#radio-button-append").prop('disabled', true);
+                $("#radio-button-replace").prop('disabled', true);
+                $("#hide-message").slideUp(300, function(){
+                    $("#discover-message").slideDown(300);
+                });
+            }
+
+            function replaceCurrentImageAnimation(imageUrl){
+                $("#image-div").append('<img id="current-image" src="' + imageUrl + '" alt="Picture you just upload">');
+                setPictureHeight();
+                $("#current-image").fadeTo(1, 0.1, function(){
+                    keepPictureCenteredVertically();
+                    $("#current-image").fadeTo(300, 1, function(){
+                        $("#radio-button-div").fadeIn(300, function(){
+                            $("#textarea-div").slideDown(300);
+                        });
+                    });
+                });
+            }
+
+            function keepContentCenteredVertically(){
+                var positioningHeight = $("body").height()/2
+                $("#positioning-div").height(positioningHeight);
+            }
+
+            function keepPictureCenteredVertically(){
+                if($("#image-div").height() > $("#current-image").height() && $("#current-image").height() != 0){
+                    $("#positioning-div-2").height(($("#image-div").height() - $("#current-image").height()) / 2)
+                }
+            }
+
+            function setPictureHeight(){
+                var pictureDivHeight = $("body").height() - 400;
+                if(pictureDivHeight > 300){
+                    $("#image-div").height(pictureDivHeight);
+                }
+            }
+
+            function hideMessage(){
+                var message = $("#hide-message-textarea").val();
+                if(messageValidation(message)){
+                    data = {};
+                    data.Message = message;
+                    if(!isMessageExist){
+                        data.Method = 'replace';
+                    }
+                    else if($("radio-button-append").prop("checked", true)){
+                        data.Method = 'append';
+                    }
+                    else{
+                        data.Method = 'replace';
+                    }
+                    $.ajax({
+                        url : '/hidemessage',
+                        type : 'POST',
+                        data : JSON.stringify(data),
+                        cache: false,
+                        contentType: 'json',
+                        success: function(data) {
+                            window.location.replace(data.imageUrl);
+                        }
+                    });
+                }
+                else{
+                    $("#message-warning-holder").show();
+                }
+            }
+
+            function messageValidation(message){
+                if(message == ""){
+                    return false;
+                }
+
+                for(let i = 0; i < message.length; i++){
+                    if(!(message.charCodeAt(i) >= 0 && message.charCodeAt(i) <= 255)){
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            function eraseMessage(){
+                $.ajax({
+                    url : '/erasemessage',
+                    type : 'POST',
+                    cache: false,
+                    success: function(data) {
+                        window.location.replace(data.imageUrl);
+                    },
+                    complete: function(){
+                        $("#loading-div").hide();
+                    }
+                });
+            }
+
+            function readMessage(){
+                $.ajax({
+                    url : '/readmessage',
+                    type : 'POST',
+                    cache: false,
+                    contentType: 'json',
+                    success : function(data) {
+                        $("#discover-message-textarea").text(data.message);
+                        remainingChar -= data.message.length;
+                        setRemainingCapacity(remainingChar);
+                    },
+                    complete: function(){
+                        $("#loading-div").hide();
+                    }
+                });
+            }
+        </script>
+    </head>
+
+    <body>
+        <div id="main-div" class ="container">
+            <div id="positioning-div"></div>
+            <div id="main-container">
+                <h1 id="title">Secret Message in Pictures</h1>
+                <div id="upload-div" class="input-group mb-3">
+                    <input id="path-of-file" type="file" class="form-control">
+                    <input id="upload-button" class="input-group-text btn btn-outline-primary" type="submit" value = "Upload" disabled></input>
+                </div>
+            </div>
+            <div id="image-div">
+                <div id="positioning-div-2"></div>
+            </div>
+            <div id="radio-button-div">
+                <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+                    <input type="radio" class="btn-check" name="btnradio" id="btnradio-hide" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary" for="btnradio-hide">Hide a message</label>
+                    <input type="radio" class="btn-check" name="btnradio" id="btnradio-read" autocomplete="off" disabled>
+                    <label class="btn btn-outline-primary" for="btnradio-read">Discover a message</label>
+                  </div>
+            </div>
+            <div id="textarea-div">
+                <div id="message-description-div">
+                    <div class="form-check message-descriptions">
+                        <input class="form-check-input" type="radio" name="flexRadioDefault" id="radio-button-append" checked disabled>
+                        <label class="form-check-label" for="radio-button-append">Append</label>
+                    </div>
+                    <div class="form-check message-descriptions">
+                        <input class="form-check-input" type="radio" name="flexRadioDefault" id="radio-button-replace" disabled>
+                        <label class="form-check-label" for="radio-button-replace">Replace</label>
+                    </div>
+                    <div class="message-descriptions" id="message-capacity-holder">
+                        <label class="text-primary">Message Capacity: </label>
+                        <label id="message-capacity">0</label>
+                        <label class="text-primary"> characters left</label>
+                    </div>
+                    <div class="message-descriptions" id="message-discover-holder">
+                        <label id="message-discovery"></label>
+                    </div>
+                    <div class="message-descriptions" id="message-warning-holder">
+                        <label id="message-warning" class="text-danger">Only support Latin alphabet and characters in the ASCII table.</label>
+                    </div>
+                </div>
+                <div id="hide-message" class="input-group mb-3">
+                    <textarea rows="6" id="hide-message-textarea" type="text" class="form-control" placeholder="Enter your message to be hidden in this picture (only support Latin alphabet and characters in the ASCII table)." aria-label="Enter Message" aria-describedby="button-addon2" style="resize:none;"></textarea>
+                    <button class="btn btn btn-outline-primary" id="submit-message" onclick="hideMessage()">Hide in Picture</button>
+                </div>
+                <div id="discover-message" class="input-group mb-3">
+                    <textarea readonly rows="6" id="discover-message-textarea" type="text" class="form-control" aria-label="Enter Message" aria-describedby="button-addon3" style="resize:none;"></textarea>
+                    <button class="btn btn btn-outline-primary" id="erase-message" onclick="eraseMessage()">Erase this Message</button>
+                </div>
+            </div>
+        </div>
+        <div id="loading-div">
+            <div class="loader"></div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+    </body>
+</html>
