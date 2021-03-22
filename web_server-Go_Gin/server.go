@@ -60,10 +60,14 @@ func main() {
 
 		var isMessageExist string
 
-		if checkMessage(UrlOfImage, UrlOfAPI+"checkmessage", binaryBeginCode) {
-			isMessageExist = "true"
-		} else {
+		if UrlOfImage[len(UrlOfImage)-3:] != "png" {
 			isMessageExist = "false"
+		} else {
+			if checkMessage(UrlOfImage, UrlOfAPI+"checkmessage", binaryBeginCode) {
+				isMessageExist = "true"
+			} else {
+				isMessageExist = "false"
+			}
 		}
 
 		data := map[string]interface{}{

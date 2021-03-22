@@ -9,78 +9,11 @@
 
         <title>Secret Message in Pictures</title>
 
-        <style>
-            html{
-                height: 100%;
-            }
-
-            body{
-                height: 100%;
-                background-color: rgb(20, 20, 30);
-                text-align: center;
-            }
-
-            #main-div{
-                height: 100%;
-            }
-
-            #title{
-                color:snow;
-            }
-
-            #image-div{
-                align-items: center;
-                margin-bottom: 25px;
-            }
-
-            #current-image{
-                max-height: 100%;
-                max-width: 100%;
-                display: none;
-            }
-
-            #radio-button-div{
-                align-items: center;
-                display: none;
-                margin-bottom: 25px;
-            }
-
-            #textarea-div, #loading-div{
-                display: none;
-            }
-
-            #message-description-div{
-                color:gainsboro;
-                text-align: left;
-            }
-
-            .message-descriptions{
-                display: inline-block;
-            }
-
-            #message-capacity-holder, #message-discover-holder, #message-warning-holder{
-                margin-left: 20px;
-            }
-
-            .loader {
-                border: 16px solid #f3f3f3;
-                border-top: 16px solid #3498db;
-                border-radius: 50%;
-                width: 120px;
-                height: 120px;
-                animation: spin 2s linear infinite;
-            }
-
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
-
         <script>
             var onPictureView = false;
-            var isMessageExist
-            var remainingChar
+            var isMessageExist;
+            var messageCapacity;
+            var remainingChar;
 
             $( document ).ready(function() {
                 keepContentCenteredVertically();
@@ -92,11 +25,8 @@
             $(window).resize(function() {
                 if(onPictureView){
                     setPictureHeight();
-                    keepPictureCenteredVertically();
                 }
-                else{
-                    keepContentCenteredVertically();
-                }
+                keepContentCenteredVertically();
 			});
 
             function addListeners(){
@@ -107,7 +37,7 @@
                 $("#upload-button").click(function(event){
                     var formData = new FormData();
                     formData.append('file', $("#path-of-file")[0].files[0]);
-
+                    $("#loading-div").show();
                     $.ajax({
                         url : '/upload',
                         type : 'POST',
@@ -116,6 +46,7 @@
                         cache: false,
                         contentType: false,
                         success : function(data) {
+                            $("#loading-div").hide();
                             if(onPictureView){
                                 replaceCurrentImage("./static/" + data.filename)
                             }
@@ -124,7 +55,8 @@
                             }
                             
                             onPictureView = true;
-                            remainingChar = data.capacity
+                            messageCapacity = data.capacity;
+                            remainingChar = messageCapacity;
                             isMessageExist = data.isMessageExist == 'true' ? true : false;
                             
                             if(isMessageExist){
@@ -134,7 +66,7 @@
                             else{
                                 setupMessageNotFound();
                                 showHidingMessageDiv();
-                                setRemainingCapacity(remainingChar);
+                                setRemainingCapacity(messageCapacity);
                             }
                         }
                     });
@@ -149,7 +81,20 @@
                 });
 
                 $('#hide-message-textarea').bind('input propertychange', function() {
-                    setRemainingCapacity(remainingChar - this.value.length);
+                    if($("#radio-button-append").is(':checked')){
+                        setRemainingCapacity(remainingChar - this.value.length);
+                    }
+                    else{
+                        setRemainingCapacity(messageCapacity - this.value.length);
+                    }
+                });
+
+                $("#radio-button-append").click((evt) => {
+                    setRemainingCapacity(remainingChar - $('#hide-message-textarea').val().length);
+                });
+
+                $("#radio-button-replace").click((evt) => {
+                    setRemainingCapacity(messageCapacity - $('#hide-message-textarea').val().length);
                 });
             }
 
@@ -158,7 +103,10 @@
             }
 
             function replaceCurrentImage(imageUrl){
+                $("#sucess-message").hide();
+                $("#hide-message-textarea").removeClass("is-invalid");
                 $("#discover-message-textarea").text("");
+                $("#hide-message-textarea").text("");
                 $("#radio-button-div").hide();
                 $("#textarea-div").hide();
                 $("#current-image").fadeOut(300, function(){
@@ -227,8 +175,9 @@
             }
 
             function keepContentCenteredVertically(){
-                var positioningHeight = $("body").height()/2
+                var positioningHeight = $("body").height()/2;
                 $("#positioning-div").height(positioningHeight);
+                $("#loading-div").css("top", positioningHeight/2 + "px");
             }
 
             function keepPictureCenteredVertically(){
@@ -247,17 +196,19 @@
             function hideMessage(){
                 var message = $("#hide-message-textarea").val();
                 if(messageValidation(message)){
+                    $("#hide-message-textarea").removeClass("is-invalid");
                     data = {};
                     data.Message = message;
                     if(!isMessageExist){
                         data.Method = 'replace';
                     }
-                    else if($("radio-button-append").prop("checked", true)){
+                    else if($("#radio-button-append").is(':checked')){
                         data.Method = 'append';
                     }
                     else{
                         data.Method = 'replace';
                     }
+                    $("#loading-div").show();
                     $.ajax({
                         url : '/hidemessage',
                         type : 'POST',
@@ -265,12 +216,14 @@
                         cache: false,
                         contentType: 'json',
                         success: function(data) {
-                            window.location.replace(data.imageUrl);
+                            $("#loading-div").hide();
+                            showFinalPicture(data.imageUrl);
                         }
                     });
                 }
                 else{
                     $("#message-warning-holder").show();
+                    $("#hide-message-textarea").addClass("is-invalid");
                 }
             }
 
@@ -289,15 +242,14 @@
             }
 
             function eraseMessage(){
+                $("#loading-div").show();
                 $.ajax({
                     url : '/erasemessage',
                     type : 'POST',
                     cache: false,
                     success: function(data) {
-                        window.location.replace(data.imageUrl);
-                    },
-                    complete: function(){
                         $("#loading-div").hide();
+                        showFinalPicture(data.imageUrl);
                     }
                 });
             }
@@ -312,13 +264,109 @@
                         $("#discover-message-textarea").text(data.message);
                         remainingChar -= data.message.length;
                         setRemainingCapacity(remainingChar);
-                    },
-                    complete: function(){
-                        $("#loading-div").hide();
                     }
                 });
             }
+
+            function showFinalPicture(imageUrl){
+                $("#radio-button-div").hide();
+                $("#textarea-div").hide();
+                $("#current-image").fadeOut(300, function(){
+                    $("#current-image").remove();
+                    $("#image-div").append('<img id="current-image" src="' + imageUrl + '" alt="Picture you just upload">');
+                    setPictureHeight();
+                    $("#current-image").fadeTo(1, 0.1, function(){
+                        keepPictureCenteredVertically();
+                        $("#current-image").fadeTo(300, 1, function(){
+                            $("#sucess-message").fadeTo(300, 1);
+                        });
+                    });
+                });
+                keepPictureCenteredVertically();
+            }
         </script>
+
+        <style>
+            html{
+                height: 100%;
+            }
+
+            body{
+                height: 100%;
+                background-color: rgb(20, 20, 30);
+                text-align: center;
+            }
+
+            #main-div{
+                height: 100%;
+            }
+
+            #title{
+                color:snow;
+            }
+
+            #image-div{
+                align-items: center;
+                margin-bottom: 25px;
+            }
+
+            #current-image{
+                max-height: 100%;
+                max-width: 100%;
+                display: none;
+            }
+
+            #radio-button-div{
+                align-items: center;
+                display: none;
+                margin-bottom: 25px;
+            }
+
+            #textarea-div, #sucess-message{
+                display: none;
+            }
+
+            #message-description-div{
+                color:gainsboro;
+                text-align: left;
+            }
+
+            .message-descriptions{
+                display: inline-block;
+            }
+
+            #message-capacity-holder, #message-discover-holder, #message-warning-holder{
+                margin-left: 20px;
+            }
+
+            #loading-div{
+                position:absolute;
+                top:0;
+                left:0;
+                height:100%;
+                width:100%;
+                display: none;
+            }
+
+            .loader {
+                border: 16px solid #ffffff;
+                border-top: 16px solid #006db6;
+                border-radius: 50%;
+                width: 120px;
+                height: 120px;
+                animation: spin 1s linear infinite;
+
+                margin: auto;
+                position: absolute;
+                left: 0;
+                right: 0;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
     </head>
 
     <body>
@@ -333,6 +381,7 @@
             </div>
             <div id="image-div">
                 <div id="positioning-div-2"></div>
+                <div id="sucess-message" class="alert alert-success" role="alert">Your picture is ready, right click to save it! Or upload another one.</div>
             </div>
             <div id="radio-button-div">
                 <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
